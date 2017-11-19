@@ -340,7 +340,28 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
         hierarchy = new DeterministicHierarchy(watchingKey);
         initializeHierarchyUnencrypted(watchingKey);
     }
-
+    /**
+     * Creates a deterministic key chain
+     * @param isWatching if true, then creates a deterministic key chain that watches the given (public only) root key or can spend from that root key. You can use this to calculate
+     * balances and generally follow along, but spending is not possible with such a chain. If false, then creates a deterministic key chain that allows spending.
+     * Currently you can't use
+     * this method to watch an arbitrary fragment of some other tree, this limitation may be removed in future.
+     */
+    public DeterministicKeyChain(DeterministicKey key, boolean isFollowing, boolean isWatching) {
+        if(isWatching)
+            checkArgument(key.isPubKeyOnly(), "Private subtrees not currently supported: if you got this key from DKC.getWatchingKey() then use .dropPrivate().dropParent() on it first.");
+        else
+            checkArgument(isWatching ? key.isPubKeyOnly() : key.hasPrivKey(), "Private subtrees are required.");
+        checkArgument(isWatching ? true : !isFollowing, "Cannot follow a key that is not watched");
+        checkArgument(key.getPath().size() == getAccountPath().size(), "You can only watch an account key currently");
+        basicKeyChain = new BasicKeyChain();
+        this.seed = null;
+        this.rootKey = null;
+        basicKeyChain.importKey(key);
+        hierarchy = new DeterministicHierarchy(key);
+        initializeHierarchyUnencrypted(key);
+        this.isFollowing = isFollowing;
+    }
     /**
      * <p>Creates a deterministic key chain with the given watch key. If <code>isFollowing</code> flag is set then this keychain follows
      * some other keychain. In a married wallet following keychain represents "spouse's" keychain.</p>
@@ -382,6 +403,13 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
      */
     public static DeterministicKeyChain watch(DeterministicKey accountKey, ImmutableList<ChildNumber> accountPath) {
         return new DeterministicKeyChain(accountKey, accountPath);
+    }
+
+    /**
+     * Creates a key chain that watches the given account key.
+     */
+    public static DeterministicKeyChain spend(DeterministicKey accountKey) {
+        return new DeterministicKeyChain(accountKey, false, false);
     }
 
     /**
@@ -677,6 +705,8 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
         return getKeyByPath(getAccountPath());
     }
 
+
+
     /** Returns true if this chain is watch only, meaning it has public keys but no private key. */
     public boolean isWatching() {
         return getWatchingKey().isWatching();
@@ -891,6 +921,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
                 // Possibly create the chain, if we didn't already do so yet.
                 boolean isWatchingAccountKey = false;
                 boolean isFollowingKey = false;
+                boolean isSpendingKey = false;
                 // save previous chain if any if the key is marked as following. Current key and the next ones are to be
                 // placed in new following key chain
                 if (key.getDeterministicKey().getIsFollowing()) {
@@ -908,7 +939,16 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
                 if (chain == null) {
                     // If this is not a following chain and previous was, this must be married
                     boolean isMarried = !isFollowingKey && !chains.isEmpty() && chains.get(chains.size() - 1).isFollowing();
-                    if (seed == null) {
+                    // If this has a private key but no seed, then all we know is the spending key HD
+                    BigInteger priv = new BigInteger(1, key.getSecretBytes().toByteArray());
+                    if (seed == null & !priv.equals(BigInteger.ZERO))
+                    {
+                        DeterministicKey accountKey = new DeterministicKey(immutablePath, chainCode, pubkey, priv, null);
+                        accountKey.setCreationTimeSeconds(key.getCreationTimestamp() / 1000);
+                        chain = factory.makeSpendingKeyChain(key, iter.peek(), accountKey, isMarried);
+                        isSpendingKey = true;
+                    }
+                    else if (seed == null) {
                         DeterministicKey accountKey = new DeterministicKey(immutablePath, chainCode, pubkey, null, null);
                         accountKey.setCreationTimeSeconds(key.getCreationTimestamp() / 1000);
                         chain = factory.makeWatchingKeyChain(key, iter.peek(), accountKey, isFollowingKey, isMarried);
@@ -924,7 +964,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
                 }
                 // Find the parent key assuming this is not the root key, and not an account key for a watching chain.
                 DeterministicKey parent = null;
-                if (!path.isEmpty() && !isWatchingAccountKey) {
+                if (!path.isEmpty() && !isWatchingAccountKey & !isSpendingKey) {
                     ChildNumber index = path.removeLast();
                     parent = chain.hierarchy.get(path, false, false);
                     path.add(index);
@@ -962,7 +1002,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
                             chain.rootKey = detkey;
                             chain.hierarchy = new DeterministicHierarchy(detkey);
                         }
-                    } else if (path.size() == chain.getAccountPath().size() + 1) {
+                    } else if ((path.size() == chain.getAccountPath().size() + 1) || isSpendingKey) {
                         // Constant 0 is used for external chain and constant 1 for internal chain
                         // (also known as change addresses). https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
                         if (detkey.getChildNumber().num() == 0) {
