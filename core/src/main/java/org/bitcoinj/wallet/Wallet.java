@@ -330,7 +330,7 @@ public class Wallet extends BaseTaggableObject
      * spending key corresponds to account zero in the recommended BIP32 key hierarchy.  This wallet can also spend.
      */
     public static Wallet fromSpendingKey(NetworkParameters params, DeterministicKey spendKey) {
-        return new Wallet(params, new KeyChainGroup(params, spendKey));
+        return new Wallet(params, new KeyChainGroup(params, spendKey, false));
     }
 
     /**
@@ -343,6 +343,14 @@ public class Wallet extends BaseTaggableObject
         final DeterministicKey spendKey = DeterministicKey.deserializeB58(null, spendingKeyB58, params);
         spendKey.setCreationTimeSeconds(creationTimeSeconds);
         return fromSpendingKey(params, spendKey);
+    }
+
+    /**
+     * Creates a wallet that tracks payments to and from the HD key hierarchy rooted by the given spending key. A
+     * spending key corresponds to account zero in the recommended BIP32 key hierarchy.  This wallet can also spend.
+     */
+    public static Wallet fromMasterKey(NetworkParameters params, DeterministicKey masterKey, int accountNumber) {
+        return new Wallet(params, new KeyChainGroup(params, new DeterministicKey(ImmutableList.<ChildNumber>of(new ChildNumber(accountNumber, true)),masterKey.getChainCode(), masterKey.getPrivKey(), masterKey)));
     }
 
     /**
