@@ -436,6 +436,63 @@ public class DeterministicKeyChainTest {
         final DeterministicKey rekey4 = chain.getKey(KeyChain.KeyPurpose.CHANGE);
         assertEquals(key4.getPubKeyPoint(), rekey4.getPubKeyPoint());
     }
+    static class AccountTwoChain extends DeterministicKeyChain {
+        public AccountTwoChain(byte[] entropy, String s, long secs) {
+            super(entropy, s, secs);
+        }
+
+        public AccountTwoChain(KeyCrypter crypter, DeterministicSeed seed) {
+            super(seed, crypter);
+        }
+
+        @Override
+        protected ImmutableList<ChildNumber> getAccountPath() {
+            return ImmutableList.of(new ChildNumber(1, true));
+        }
+    }
+
+    @Test
+    public void spendingChainAccountTwo() throws UnreadableWalletException {
+        Utils.setMockClock();
+        long secs = 1389353062L;
+        chain = new AccountTwoChain(ENTROPY, "", secs);
+        DeterministicKey key1 = chain.getKey(KeyChain.KeyPurpose.RECEIVE_FUNDS);
+        DeterministicKey key2 = chain.getKey(KeyChain.KeyPurpose.RECEIVE_FUNDS);
+        DeterministicKey key3 = chain.getKey(KeyChain.KeyPurpose.CHANGE);
+        DeterministicKey key4 = chain.getKey(KeyChain.KeyPurpose.CHANGE);
+
+        NetworkParameters params = MainNetParams.get();
+        DeterministicKey watchingKey = chain.getWatchingKey();
+        //DeterministicKey masterKey = watchingKey.getParent();
+
+        //DeterministicKey accountOneKey = new DeterministicKey(ImmutableList.<ChildNumber>of(new ChildNumber(1, true)), masterKey.getChainCode(), masterKey.getPrivKey(), masterKey);
+
+        final String prv58 = watchingKey.serializePrivB58(params);
+        assertEquals("xprv9vL4k9HYXonmxdmxY9etzUuy3FckMnBUvnKzeMT88GpT8xA3pw1yZb8kpmuvHkXNypScSZY6Tn2oXvgxLHjQoKNN4QU1mPJSBJRyW17Qjqg", prv58);
+        watchingKey = DeterministicKey.deserializeB58(null, prv58, params);
+        watchingKey.setCreationTimeSeconds(secs);
+        chain = DeterministicKeyChain.spend(watchingKey);
+        assertEquals(secs, chain.getEarliestKeyCreationTime());
+        chain.setLookaheadSize(10);
+        chain.maybeLookAhead();
+
+        assertEquals(key1.getPubKeyPoint(), chain.getKey(KeyChain.KeyPurpose.RECEIVE_FUNDS).getPubKeyPoint());
+        assertEquals(key2.getPubKeyPoint(), chain.getKey(KeyChain.KeyPurpose.RECEIVE_FUNDS).getPubKeyPoint());
+        final DeterministicKey key = chain.getKey(KeyChain.KeyPurpose.CHANGE);
+        assertEquals(key3.getPubKeyPoint(), key.getPubKeyPoint());
+        try {
+            // We can sign with a key from a spending chain.
+            key.sign(Sha256Hash.ZERO_HASH);
+        } catch (ECKey.MissingPrivateKeyException e) {
+            fail();
+        }
+        // Test we can serialize and deserialize a watching chain OK.
+        List<Protos.Key> serialization = chain.serializeToProtobuf();
+        checkSerialization(serialization, "spending-wallet-serialization-account-one.txt");
+        chain = DeterministicKeyChain.fromProtobuf(serialization, null).get(0);
+        final DeterministicKey rekey4 = chain.getKey(KeyChain.KeyPurpose.CHANGE);
+        assertEquals(key4.getPubKeyPoint(), rekey4.getPubKeyPoint());
+    }
 
     @Test(expected = IllegalStateException.class)
     public void watchingCannotEncrypt() throws Exception {
