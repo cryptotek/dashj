@@ -359,6 +359,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
         this.rootKey = null;
         basicKeyChain.importKey(key);
         hierarchy = new DeterministicHierarchy(key);
+        accountPath = key.getPath();
         initializeHierarchyUnencrypted(key);
         this.isFollowing = isFollowing;
     }
