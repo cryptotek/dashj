@@ -340,6 +340,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
         hierarchy = new DeterministicHierarchy(watchingKey);
         initializeHierarchyUnencrypted(watchingKey);
     }
+
     /**
      * Creates a deterministic key chain
      * @param isWatching if true, then creates a deterministic key chain that watches the given (public only) root key or can spend from that root key. You can use this to calculate
@@ -348,21 +349,34 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
      * this method to watch an arbitrary fragment of some other tree, this limitation may be removed in future.
      */
     public DeterministicKeyChain(DeterministicKey key, boolean isFollowing, boolean isWatching) {
+        this(key, isFollowing, isWatching, ImmutableList.of(new ChildNumber(0, true)));
+    }
+
+    /**
+     * Creates a deterministic key chain
+     * @param isWatching if true, then creates a deterministic key chain that watches the given (public only) root key or can spend from that root key. You can use this to calculate
+     * balances and generally follow along, but spending is not possible with such a chain. If false, then creates a deterministic key chain that allows spending.
+     * Currently you can't use
+     * this method to watch an arbitrary fragment of some other tree, this limitation may be removed in future.
+     */
+    public DeterministicKeyChain(DeterministicKey key, boolean isFollowing, boolean isWatching,
+                                 ImmutableList<ChildNumber> accountPath) {
         if(isWatching)
             checkArgument(key.isPubKeyOnly(), "Private subtrees not currently supported: if you got this key from DKC.getWatchingKey() then use .dropPrivate().dropParent() on it first.");
         else
             checkArgument(key.hasPrivKey(), "Private subtrees are required.");
         checkArgument(isWatching ? true : !isFollowing, "Cannot follow a key that is not watched");
-        checkArgument(key.getPath().size() == getAccountPath().size(), "You can only watch an account key currently");
+        checkArgument(key.getPath().size() == accountPath.size(), "You can only watch an account key currently");
         basicKeyChain = new BasicKeyChain();
         this.seed = null;
         this.rootKey = null;
         basicKeyChain.importKey(key);
         hierarchy = new DeterministicHierarchy(key);
-        accountPath = key.getPath();
+        this.accountPath = key.getPath();
         initializeHierarchyUnencrypted(key);
         this.isFollowing = isFollowing;
     }
+
     /**
      * <p>Creates a deterministic key chain with the given watch key. If <code>isFollowing</code> flag is set then this keychain follows
      * some other keychain. In a married wallet following keychain represents "spouse's" keychain.</p>
@@ -411,6 +425,13 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
      */
     public static DeterministicKeyChain spend(DeterministicKey accountKey) {
         return new DeterministicKeyChain(accountKey, false, false);
+    }
+
+    /**
+     * Creates a key chain that watches the given account key.
+     */
+    public static DeterministicKeyChain spend(DeterministicKey accountKey, ImmutableList<ChildNumber> accountPath) {
+        return new DeterministicKeyChain(accountKey, false, false, accountPath);
     }
 
     /**
@@ -946,7 +967,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
                     {
                         DeterministicKey accountKey = new DeterministicKey(immutablePath, chainCode, pubkey, priv, null);
                         accountKey.setCreationTimeSeconds(key.getCreationTimestamp() / 1000);
-                        chain = factory.makeSpendingKeyChain(key, iter.peek(), accountKey, isMarried);
+                        chain = factory.makeSpendingKeyChain(key, iter.peek(), accountKey, isMarried, immutablePath);
                         isSpendingKey = true;
                     }
                     else if (seed == null) {
