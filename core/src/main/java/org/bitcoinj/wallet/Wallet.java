@@ -372,9 +372,9 @@ public class Wallet extends BaseTaggableObject
      * spending key corresponds to account zero in the recommended BIP32 key hierarchy.  This wallet can also spend.
      */
     public static Wallet fromMasterKey(NetworkParameters params, DeterministicKey masterKey, int accountNumber) {
-        return new Wallet(params, new KeyChainGroup(params,
+        return new Wallet(params, KeyChainGroup.createSpendingOrWatchingKeyChainGroup(params,
                 new DeterministicKey(ImmutableList.<ChildNumber>of(new ChildNumber(accountNumber, true)),
-                        masterKey.getChainCode(), masterKey.getPrivKey(), masterKey)));
+                        masterKey.getChainCode(), masterKey.getPrivKey(), masterKey), true));
     }
 
     /**

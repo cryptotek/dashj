@@ -704,6 +704,20 @@ public class KeyChainGroup implements KeyBag {
     }
 
     /**
+     * Creates a keychain group with no basic chain, and an HD chain that is watching the given watching key.
+     * This HAS to be an account key as returned by {@link DeterministicKeyChain#getWatchingKey()}.
+     */
+    static KeyChainGroup createSpendingOrWatchingKeyChainGroup(NetworkParameters params, DeterministicKey key,
+                                                               boolean spend) {
+        if (spend) {
+            return new KeyChainGroup(params, null, ImmutableList.of(DeterministicKeyChain.spend(key)),
+                    null, null);
+        } else {
+            return new KeyChainGroup(params, key);
+        }
+    }
+
+    /**
      * If the key chain contains only random keys and no deterministic key chains, this method will create a chain
      * based on the oldest non-rotating private key (i.e. the seed is derived from the old wallet).
      *
