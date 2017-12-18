@@ -366,7 +366,9 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
         else
             checkArgument(key.hasPrivKey(), "Private subtrees are required.");
         checkArgument(isWatching ? true : !isFollowing, "Cannot follow a key that is not watched");
-        checkArgument(key.getPath().size() == accountPath.size(), "You can only watch an account key currently");
+        if(isWatching) {
+            checkArgument(key.getPath().size() == accountPath.size(), "You can only watch an account key currently");
+        }
         basicKeyChain = new BasicKeyChain();
         this.seed = null;
         this.rootKey = null;
