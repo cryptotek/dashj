@@ -156,6 +156,30 @@ public final class HDKeyDerivation {
         }
     }
 
+    /**
+     * @throws HDDerivationException if private derivation is attempted for a public-only parent key, or
+     * if the resulting derived key is invalid (eg. private key == 0).  This method does not connect the derived
+     * child to its parent.
+     */
+    public static DeterministicKey deriveChildKeyWithNoParent(DeterministicKey parent, ChildNumber childNumber) throws HDDerivationException {
+        if (!parent.hasPrivKey()) {
+            RawKeyBytes rawKey = deriveChildKeyBytesFromPublic(parent, childNumber, PublicDeriveMode.NORMAL);
+            return new DeterministicKey(
+                    ImmutableList.of(childNumber),
+                    rawKey.chainCode,
+                    new LazyECPoint(ECKey.CURVE.getCurve(), rawKey.keyBytes),
+                    null,
+                    null);
+        } else {
+            RawKeyBytes rawKey = deriveChildKeyBytesFromPrivate(parent, childNumber);
+            return new DeterministicKey(
+                    ImmutableList.of(childNumber),
+                    rawKey.chainCode,
+                    new BigInteger(1, rawKey.keyBytes),
+                    null);
+        }
+    }
+
     public static RawKeyBytes deriveChildKeyBytesFromPrivate(DeterministicKey parent,
                                                               ChildNumber childNumber) throws HDDerivationException {
         checkArgument(parent.hasPrivKey(), "Parent key must have private key bytes for this method.");
