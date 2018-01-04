@@ -323,6 +323,59 @@ public class Wallet extends BaseTaggableObject
     }
 
     /**
+     * Creates a wallet that tracks payments to and from the HD key hierarchy rooted by the given spending key. A
+     * spending key corresponds to account zero in the recommended BIP32 key hierarchy.  This wallet can also spend.
+     */
+    public static Wallet fromSpendingKey(NetworkParameters params, DeterministicKey spendKey) {
+        return new Wallet(params, new KeyChainGroup(params, spendKey, false));
+    }
+
+    /**
+     * Creates a wallet that tracks payments to and from the HD key hierarchy rooted by the given spending key. A
+     * spending key corresponds to account zero in the recommended BIP32 key hierarchy.  This wallet can also spend.
+     */
+    public static Wallet fromSpendingKey(NetworkParameters params, DeterministicKey spendKey,
+                                         ImmutableList<ChildNumber> accountPath) {
+        return new Wallet(params, new KeyChainGroup(params, spendKey, false, accountPath));
+    }
+
+    /**
+     * Creates a wallet that tracks payments to and from the HD key hierarchy rooted by the given spending key. A
+     * watching key corresponds to account zero in the recommended BIP32 key hierarchy. The key is specified in base58
+     * notation and the creation time of the key. If you don't know the creation time, you can pass
+     * {@link DeterministicHierarchy#BIP32_STANDARDISATION_TIME_SECS}.
+     */
+    public static Wallet fromSpendingKeyB58(NetworkParameters params, String spendingKeyB58, long creationTimeSeconds,
+                                            ImmutableList<ChildNumber> accountPath) {
+        final DeterministicKey spendKey = DeterministicKey.deserializeB58(null, spendingKeyB58, params);
+        spendKey.setCreationTimeSeconds(creationTimeSeconds);
+        return fromSpendingKey(params, spendKey);
+    }
+
+    /**
+     * Creates a wallet that tracks payments to and from the HD key hierarchy rooted by the given spending key. A
+     * watching key corresponds to account zero in the recommended BIP32 key hierarchy. The key is specified in base58
+     * notation and the creation time of the key. If you don't know the creation time, you can pass
+     * {@link DeterministicHierarchy#BIP32_STANDARDISATION_TIME_SECS}.
+     */
+    public static Wallet fromSpendingKeyB58(NetworkParameters params, String spendingKeyB58, long creationTimeSeconds) {
+        final DeterministicKey spendKey = DeterministicKey.deserializeB58(null, spendingKeyB58, params);
+        spendKey.setCreationTimeSeconds(creationTimeSeconds);
+        return fromSpendingKey(params, spendKey);
+    }
+
+    /**
+     * Creates a wallet that tracks payments to and from the HD key hierarchy rooted by the given spending key. A
+     * spending key corresponds to account zero in the recommended BIP32 key hierarchy.  This wallet can also spend.
+     */
+    public static Wallet fromMasterKey(NetworkParameters params, DeterministicKey masterKey, int accountNumber) {
+        DeterministicKey accountKey = HDKeyDerivation.deriveChildKeyWithNoParent(masterKey, new ChildNumber(accountNumber, true));
+        accountKey.setCreationTimeSeconds(masterKey.getCreationTimeSeconds());
+        return new Wallet(params, KeyChainGroup.createSpendingOrWatchingKeyChainGroup(params,
+                accountKey,true));
+    }
+
+    /**
      * Creates a wallet containing a given set of keys. All further keys will be derived from the oldest key.
      */
     public static Wallet fromKeys(NetworkParameters params, List<ECKey> keys) {
@@ -836,6 +889,21 @@ public class Wallet extends BaseTaggableObject
      * zero key in the recommended BIP32 hierarchy.
      */
     public DeterministicKey getWatchingKey() {
+        keyChainGroupLock.lock();
+        try {
+            maybeUpgradeToHD();
+            return keyChainGroup.getActiveKeyChain().getWatchingKey();
+        } finally {
+            keyChainGroupLock.unlock();
+        }
+    }
+
+    /**
+     * Returns a DeterministicKey that can be used to set up a spending wallet: that is, a wallet that
+     * can import transactions from the block chain just as the normal wallet can and can spend.
+     * This key corresponds to the account zero key in the recommended BIP32 hierarchy.
+     */
+    public DeterministicKey getSpendingKey() {
         keyChainGroupLock.lock();
         try {
             maybeUpgradeToHD();
