@@ -470,7 +470,7 @@ public class DeterministicKeyChainTest {
         DeterministicKey watchingKey = chain.getWatchingKey();
 
         final String prv58 = watchingKey.serializePrivB58(params);
-        assertEquals("xprv9vL4k9HYXonmxdmxY9etzUuy3FckMnBUvnKzeMT88GpT8xA3pw1yZb8kpmuvHkXNypScSZY6Tn2oXvgxLHjQoKNN4QU1mPJSBJRyW17Qjqg", prv58);
+        assertEquals("xprv9vL4k9HYXonmzR7UC1ngJ3hTjxkmjLLUo3RexSfUGSWcACHzghWBLJAwW6xzs59XeFizQxFQWtscoTfrF9PSXrUgAtBgr13Nuojax8xTBRz", prv58);
         watchingKey = DeterministicKey.deserializeB58(null, prv58, params);
         watchingKey.setCreationTimeSeconds(secs);
         chain = DeterministicKeyChain.spend(watchingKey);
